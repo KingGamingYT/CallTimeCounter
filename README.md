@@ -1,5 +1,5 @@
 # CallTimeCounter
-Shows how much time you are in a voice chat.
+Shows how much time you've spent in a voice call.
 
 Plugin originally created by Rasync, ported to BetterDiscord by QWERT
 
