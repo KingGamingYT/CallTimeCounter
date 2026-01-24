@@ -2,7 +2,7 @@
  * @name CallTimeCounter
  * @author QWERT, KingGamingYT
  * @description Shows how much time you are in a voice chat.
- * @version 1.0.0
+ * @version 1.0.1
  */ 
 
 const { Data, Webpack, React, Patcher, DOM, UI, Utils, ContextMenu } = BdApi;
@@ -10,7 +10,7 @@ const { createElement, Component } = React;
 
 const PanelSubtext = Webpack.getModule(m => m?.$$typeof?.toString() === "Symbol(react.forward_ref)"
     && m.render?.toString().includes("createHref"), {searchExports: true});
-const Dispatcher = Webpack.getByKeys('dispatch', 'subscribe', 'register');
+const Dispatcher = Webpack.getByKeys('dispatch', 'subscribe', 'register', { searchExports: true });
 const SelectedChannelStore = Webpack.getStore('SelectedChannelStore');
 const rtcClasses = Webpack.getByKeys('rtcConnectionStatus', 'ping');
 const panelContainerClasses = Webpack.getByKeys('connection', 'inner');
