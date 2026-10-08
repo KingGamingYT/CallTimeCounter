@@ -2,14 +2,14 @@
  * @name CallTimeCounter
  * @author QWERT, KingGamingYT
  * @description Shows how much time you are in a voice chat.
- * @version 1.0.2
+ * @version 1.0.3
  */ 
 
-const { Data, Webpack, React, Patcher, DOM, UI, Utils, ContextMenu } = BdApi;
+const { Webpack, React, Patcher, DOM } = BdApi;
 const { createElement, Component } = React;
 
 const PanelSubtext = Webpack.getModule(m => m?.$$typeof?.toString() === "Symbol(react.forward_ref)"
-    && m.render?.toString().includes("createHref"), {searchExports: true});
+    && m.render?.toString().includes("createHref"), {searchExports: true, declarationFilter: m => m.render?.toString().includes("defaultPrevented")});
 const Dispatcher = Webpack.getByKeys('dispatch', 'subscribe', 'register', { searchExports: true });
 const SelectedChannelStore = Webpack.getStore('SelectedChannelStore');
 const rtcClasses = Webpack.getByKeys('rtcConnectionStatus', 'ping');
@@ -92,9 +92,9 @@ module.exports = class CallTimeCounter {
     start() {
         DOM.addStyle('voiceTimer', voiceTimerCSS);
         Patcher.before('CallTimeCounter', PanelSubtext, "render", (that, [props], res) => { 
-            if (!props?.children?.props?.className?.includes("channel")) return;
-            props.children.props.children = [
-                props.children.props.children,
+            if (!props?.onContextMenu) return;
+            props.children[1].props.children = [
+                props.children[1].props.children,
                 createElement(Timer, { className: "voiceTimer" })
             ]
         })
