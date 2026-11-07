@@ -1,107 +1,281 @@
 /**
  * @name CallTimeCounter
  * @author QWERT, KingGamingYT
- * @description Shows how much time you are in a voice chat.
- * @version 1.0.3
- */ 
+ * @description Shows how long you personally have been connected to the current voice channel.
+ * @version 2.1.0
+ */
+// Fix by bigsecretofind + Copilot for assistance 
+module.exports = class CallTimeCounter {
+    start() {
+        this.startTime = null;
+        this.currentChannel = null;
+        this.interval = null;
+        this.timer = null;
+        this.timerHost = null;
 
-const { Webpack, React, Patcher, DOM } = BdApi;
-const { createElement, Component } = React;
+        this.SelectedChannelStore =
+            BdApi.Webpack.getStore("SelectedChannelStore");
 
-const PanelSubtext = Webpack.getModule(m => m?.$$typeof?.toString() === "Symbol(react.forward_ref)"
-    && m.render?.toString().includes("createHref"), {searchExports: true, declarationFilter: m => m.render?.toString().includes("defaultPrevented")});
-const Dispatcher = Webpack.getByKeys('dispatch', 'subscribe', 'register', { searchExports: true });
-const SelectedChannelStore = Webpack.getStore('SelectedChannelStore');
-const rtcClasses = Webpack.getByKeys('rtcConnectionStatus', 'ping');
-const panelContainerClasses = Webpack.getByKeys('connection', 'inner');
-let lastVoice, lastState;
+        this.Dispatcher =
+            BdApi.Webpack.getByKeys(
+                "dispatch",
+                "subscribe",
+                "register",
+                { searchExports: true }
+            );
 
-class Timer extends Component {
-    constructor(props) {
-        super(props);
-        this.connected = this.connected.bind(this);
-        this.state = {
-            startTime: 0,
-            delta: 0
+        if (!this.SelectedChannelStore) {
+            BdApi.UI.showToast(
+                "CallTimeCounter: SelectedChannelStore was not found.",
+                { type: "error" }
+            );
+            return;
+        }
+
+        this.handleVoiceChange =
+            this.handleVoiceChange.bind(this);
+
+        this.onRTCState = (event) => {
+            if (!event) return;
+
+            if (
+                event.state === "RTC_DISCONNECTED" &&
+                this.currentChannel
+            ) {
+                this.startTime = Date.now();
+                this.renderTimer();
+            }
+        };
+
+        if (
+            typeof this.SelectedChannelStore
+                .addChangeListener === "function"
+        ) {
+            this.SelectedChannelStore.addChangeListener(
+                this.handleVoiceChange
+            );
+        }
+
+        this.Dispatcher?.subscribe?.(
+            "RTC_CONNECTION_STATE",
+            this.onRTCState
+        );
+
+        this.handleVoiceChange();
+
+        this.interval = setInterval(() => {
+            this.handleVoiceChange();
+            this.renderTimer();
+        }, 1000);
+    }
+
+    getVoicePanel() {
+        const voiceNode = document.querySelector(
+            '[class*="rtcConnectionStatus"]'
+        );
+
+        if (!voiceNode) {
+            return null;
+        }
+
+        let element = voiceNode;
+
+        for (let level = 0; level < 8; level++) {
+            if (!element) break;
+
+            const buttonCount =
+                element.querySelectorAll("button").length;
+
+            if (buttonCount >= 3) {
+                return {
+                    voiceNode,
+                    panel: element
+                };
+            }
+
+            element = element.parentElement;
+        }
+
+        return {
+            voiceNode,
+            panel:
+                voiceNode.parentElement?.parentElement ||
+                voiceNode.parentElement
         };
     }
 
-    connected(e) {
-        if (e.state && e.state === 'RTC_DISCONNECTED' && !e.hasOwnProperty('streamKey')) {
-            this.setState((prev) => (
-                prev.startTime = Date.now()
-            ));
+    handleVoiceChange() {
+        const channel =
+            this.SelectedChannelStore
+                .getVoiceChannelId();
+
+        if (!channel) {
+            this.currentChannel = null;
+            this.startTime = null;
+            this.removeTimer();
+            return;
         }
-    }
 
-    componentDidMount() {
-        if(lastVoice === SelectedChannelStore.getVoiceChannelId()) {
-            Dispatcher.subscribe('RTC_CONNECTION_STATE', this.connected);
-            this.setState(lastState);
-            this.interval = setInterval(() => {
-                this.setState((prev) => (prev.delta = Math.round((Date.now() - prev.startTime) / 1000) * 1000));
-                this.setState((prev) => prev.lastVoice = SelectedChannelStore.getVoiceChannelId());
-            }, 1000);
-        }else{
-            this.setState((prev) => (
-                prev.startTime = Date.now()));
-            Dispatcher.subscribe('RTC_CONNECTION_STATE', this.connected);
-            this.interval = setInterval(() => {
-                this.setState((prev) => (prev.delta = Math.round((Date.now() - prev.startTime) / 1000) * 1000));
-                this.setState((prev) => prev.lastVoice = SelectedChannelStore.getVoiceChannelId());
-            }, 1000);
+        if (channel !== this.currentChannel) {
+            this.currentChannel = channel;
+            this.startTime = Date.now();
         }
+
+        this.renderTimer();
     }
 
-    componentWillUnmount() {
-        Dispatcher.unsubscribe('RTC_CONNECTION_STATE', this.connected);
-        lastVoice = this.state.lastVoice;
-        lastState = this.state;
-        setTimeout(() => {
-            lastVoice = null;
-            lastState = {};
-        }, 1000)
-        clearInterval(this.interval);
+    createTimer(panel) {
+        this.removeTimer();
+
+        const computedPosition =
+            window.getComputedStyle(panel).position;
+
+        if (computedPosition === "static") {
+            panel.style.position = "relative";
+            panel.dataset.callTimeCounterPosition =
+                "changed";
+        }
+
+        const timer =
+            document.createElement("div");
+
+        timer.id = "call-time-counter-panel";
+
+        Object.assign(timer.style, {
+            position: "absolute",
+            right: "16px",
+            top: "36px",
+            zIndex: "5",
+            fontSize: "11px",
+            lineHeight: "14px",
+            fontWeight: "500",
+            color: "var(--text-muted)",
+            whiteSpace: "nowrap",
+            pointerEvents: "none",
+            userSelect: "none"
+        });
+
+        panel.appendChild(timer);
+
+        this.timer = timer;
+        this.timerHost = panel;
+
+        return timer;
     }
 
-    render() {
-        return createElement("div", { className: "voiceTimer" }, `Time elapsed: ${new Date(this.state.delta).toISOString().substring(11, 19)}`);
-    }
-}
+    renderTimer() {
+        if (
+            !this.currentChannel ||
+            !this.startTime
+        ) {
+            this.removeTimer();
+            return;
+        }
 
-const voiceTimerCSS = 
-`
-    .${rtcClasses.rtcConnectionStatus}, .${panelContainerClasses.inner}, .${panelContainerClasses.connection} {
-        height: fit-content;
-    }
-    .${panelContainerClasses.channel} {
-        text-decoration: none !important;
-    }
-    .${panelContainerClasses.channel} > div:nth-child(1):hover {
-        text-decoration: underline;
-    }
-    .voiceTimer {
-        margin-top: 4px;
+        const result = this.getVoicePanel();
+
+        if (!result || !result.panel) {
+            return;
+        }
+
+        let timer =
+            document.getElementById(
+                "call-time-counter-panel"
+            );
+
+        if (
+            !timer ||
+            !timer.isConnected ||
+            this.timerHost !== result.panel
+        ) {
+            timer =
+                this.createTimer(result.panel);
+        }
+
+        const elapsed = Math.max(
+            0,
+            Date.now() - this.startTime
+        );
+
+        const hours = String(
+            Math.floor(elapsed / 3600000)
+        ).padStart(2, "0");
+
+        const minutes = String(
+            Math.floor(
+                (elapsed % 3600000) / 60000
+            )
+        ).padStart(2, "0");
+
+        const seconds = String(
+            Math.floor(
+                (elapsed % 60000) / 1000
+            )
+        ).padStart(2, "0");
+
+        timer.textContent =
+            "You: " +
+            hours +
+            ":" +
+            minutes +
+            ":" +
+            seconds;
     }
 
-`
+    removeTimer() {
+        const timer =
+            document.getElementById(
+                "call-time-counter-panel"
+            );
 
-module.exports = class CallTimeCounter {
-    constructor() {}
+        if (timer) {
+            timer.remove();
+        }
 
-    start() {
-        DOM.addStyle('voiceTimer', voiceTimerCSS);
-        Patcher.before('CallTimeCounter', PanelSubtext, "render", (that, [props], res) => { 
-            if (!props?.onContextMenu) return;
-            props.children[1].props.children = [
-                props.children[1].props.children,
-                createElement(Timer, { className: "voiceTimer" })
-            ]
-        })
+        if (
+            this.timerHost &&
+            this.timerHost.dataset
+                .callTimeCounterPosition ===
+                "changed"
+        ) {
+            this.timerHost.style.position = "";
+
+            delete this.timerHost.dataset
+                .callTimeCounterPosition;
+        }
+
+        this.timer = null;
+        this.timerHost = null;
     }
 
     stop() {
-        Patcher.unpatchAll('CallTimeCounter');
-        DOM.removeStyle('voiceTimer');
+        if (this.interval) {
+            clearInterval(this.interval);
+            this.interval = null;
+        }
+
+        if (
+            this.SelectedChannelStore &&
+            typeof this.SelectedChannelStore
+                .removeChangeListener ===
+                "function"
+        ) {
+            this.SelectedChannelStore
+                .removeChangeListener(
+                    this.handleVoiceChange
+                );
+        }
+
+        this.Dispatcher?.unsubscribe?.(
+            "RTC_CONNECTION_STATE",
+            this.onRTCState
+        );
+
+        this.removeTimer();
+
+        this.startTime = null;
+        this.currentChannel = null;
+        this.SelectedChannelStore = null;
+        this.Dispatcher = null;
     }
-}
+};
