@@ -152,7 +152,8 @@ module.exports = class CallTimeCounter {
             color: "var(--text-muted)",
             whiteSpace: "nowrap",
             pointerEvents: "none",
-            userSelect: "none"
+            userSelect: "none",
+            fontVariantNumeric: "tabular-nums"
         });
 
         panel.appendChild(timer);
